@@ -1,0 +1,60 @@
+# main.py
+
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+import boto3
+import stripe
+import uuid
+import os
+
+app = FastAPI()
+
+# CORS (liberar frontend)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ENV VARS
+AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+S3_BUCKET = os.getenv("S3_BUCKET_NAME")
+
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
+# S3 CLIENT
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY,
+    aws_secret_access_key=AWS_SECRET_KEY,
+)
+
+
+@app.get("/")
+def home():
+    return {"status": "VortexIA Backend Rodando"}
+
+
+# =========================
+# UPLOAD DE VÍDEO (SIMPLES)
+# =========================
+@app.post("/upload-video")
+async def upload_video(file: UploadFile = File(...)):
+    try:
+        file_id = str(uuid.uuid4())
+        filename = f"videos/{file_id}_{file.filename}"
+
+        s3.upload_fileobj(
+            file.file,
+            S3_BUCKET,
+            filename,
+            ExtraArgs={"ContentType": file.content_type}
+        )
+
+        url = f"https://{S3_BUCKET}.s3.amazonaws.com/{filename}"
+
+        return {
+            "message": "Upload realizado com sucesso",
